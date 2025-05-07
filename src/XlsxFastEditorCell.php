@@ -242,10 +242,10 @@ final class XlsxFastEditorCell
 	 * @return \DOMElement The `<v>` value element of the provided cell, or `null` in case of error.
 	 * @throws XlsxFastEditorXmlException
 	 */
-	private function initCellValue(): \DOMElement
+	public function initCellValue(): \DOMElement
 	{
 		$v = null;
-		$this->c->removeAttribute('t');	// Remove type, if it exists
+		$this->c->removeAttribute('t');  // Remove type, if it exists
 		for ($i = $this->c->childNodes->length - 1; $i >= 0; $i--) {
 			// Remove all children except <v>
 			$child = $this->c->childNodes[$i];
@@ -371,9 +371,9 @@ final class XlsxFastEditorCell
 	 */
 	public function writeString(string $value): void
 	{
-		$v = self::initCellValue();
-		$this->c->setAttribute('t', 's');	// Type shared string
-		$sharedStringId = $this->editor->_makeNewSharedString($value);
+		$v = $this->initCellValue();
+		$this->c->setAttribute('t', 's');  // Type shared string
+		$sharedStringId = $this->editor->_getOrCreateSharedString($value);
 		$v->nodeValue = (string)$sharedStringId;
 		$this->editor->_touchWorksheet($this->sheetNumber);
 	}
@@ -397,5 +397,14 @@ final class XlsxFastEditorCell
 		} catch (\InvalidArgumentException $iax) {
 			throw new XlsxFastEditorXmlException("Error querying XML fragment for hyperlink in cell {$this->name()}!", $iax->getCode(), $iax);
 		}
+	}
+
+	/**
+	 * Sets the type attribute for the cell.
+	 * @param string $type Cell type (e.g., 's' for shared string)
+	 */
+	public function setType(string $type): void
+	{
+		$this->c->setAttribute('t', $type);
 	}
 }

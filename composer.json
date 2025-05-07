@@ -26,8 +26,9 @@
 		"ext-ctype": "*",
 		"ext-dom": "*",
 		"ext-xml": "*",
-		"ext-zip": "*"
-	},
+		"ext-zip": "*",
+        "ext-libxml": "*"
+    },
 	"require-dev": {
 		"ext-simplexml": "*",
 		"ext-tokenizer": "*",

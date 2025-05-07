@@ -15,6 +15,8 @@ declare(strict_types=1);
 
 namespace alexandrainst\XlsxFastEditor;
 
+use InvalidArgumentException;
+
 /**
  * Main class to fast edit an existing XLSX/XLSM document (Microsoft Excel 2007+, Office Open XML Workbook)
  * using low-level ZIP and XML manipulation.
@@ -28,6 +30,12 @@ final class XlsxFastEditor
 	private const SHARED_STRINGS_PATH = 'xl/sharedStrings.xml';
 	private const WORKBOOK_PATH = 'xl/workbook.xml';
 	private const WORKBOOK_RELS_PATH = 'xl/_rels/workbook.xml.rels';
+
+	/**
+	 * Cache for frequently used strings to avoid creating duplicates in sharedStrings.xml
+	 * @var array<string,int>
+	 */
+	private array $sharedStringsCache = [];
 
 	private \ZipArchive $zip;
 
@@ -71,8 +79,8 @@ final class XlsxFastEditor
 
 	/**
 	 * Mark a document fragment as modified.
-	 * @internal
 	 * @param int $sheetNumber Worksheet number (base 1)
+	 * @internal
 	 */
 	public function _touchWorksheet(int $sheetNumber): void
 	{
@@ -211,8 +219,8 @@ final class XlsxFastEditor
 	 * Convert an internal Excel float representation of a date to a standard `DateTime`.
 	 * @param int $workbookDateSystem {@see XlsxFastEditor::getWorkbookDateSystem()}
 	 * @phpstan-param 1900|1904 $workbookDateSystem
-	 * @internal
 	 * @throws \InvalidArgumentException
+	 * @internal
 	 */
 	public static function excelDateToDateTime(float $excelDateTime, int $workbookDateSystem = 1900): \DateTimeImmutable
 	{
@@ -294,7 +302,7 @@ final class XlsxFastEditor
 			if (is_string($target) && preg_match('/(\d+)/i', $target, $matches)) {
 				return (int)$matches[1];
 			}
-		} catch (XlsxFastEditorFileFormatException $ex) {	// phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
+		} catch (XlsxFastEditorFileFormatException $ex) {  // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
 		}
 
 		if (preg_match('/(\d+)/i', $rId, $matches)) {
@@ -663,11 +671,11 @@ final class XlsxFastEditor
 	 * set to `XlsxFastEditor::ACCESS_MODE_AUTOCREATE` to auto-create the cell.
 	 * @return XlsxFastEditorCell|null A cell, potentially `null` if the cell does not exist and `$accessMode` is set to `XlsxFastEditor::ACCESS_MODE_NULL`
 	 * @phpstan-return ($accessMode is XlsxFastEditor::ACCESS_MODE_NULL ? XlsxFastEditorCell|null : XlsxFastEditorCell)
-	 * @internal
 	 * @throws XlsxFastEditorFileFormatException
 	 * @throws \InvalidArgumentException if `$cellName` has an invalid format
 	 * @throws XlsxFastEditorInputException optionally if the corresponding cell does not exist, depending on choice of `$accessMode`
 	 * @throws XlsxFastEditorXmlException
+	 * @internal
 	 */
 	public function getCell(int $sheetNumber, string $cellName, int $accessMode = XlsxFastEditor::ACCESS_MODE_NULL): ?XlsxFastEditorCell
 	{
@@ -819,13 +827,13 @@ final class XlsxFastEditor
 	/**
 	 * Access a string stored in the shared strings list.
 	 * @param int $stringNumber String number (ID), base 0.
-	 * @internal
 	 * @throws XlsxFastEditorFileFormatException
 	 * @throws XlsxFastEditorXmlException
+	 * @internal
 	 */
 	public function _getSharedString(int $stringNumber): ?string
 	{
-		$stringNumber++;	// Base 1
+		$stringNumber++;  // Base 1
 
 		$xpath = $this->getXPathFromPath(self::SHARED_STRINGS_PATH);
 		$ts = $xpath->query("/o:sst/o:si[$stringNumber]//o:t");
@@ -867,10 +875,10 @@ final class XlsxFastEditor
 	/**
 	 * Access an hyperlink referenced from a cell of the specified sheet.
 	 * @param string $rId Hyperlink reference.
-	 * @internal
 	 * @throws \InvalidArgumentException if `$rId` has an invalid format
 	 * @throws XlsxFastEditorFileFormatException
 	 * @throws XlsxFastEditorXmlException
+	 * @internal
 	 */
 	public function _getHyperlink(int $sheetNumber, string $rId): ?string
 	{
@@ -882,7 +890,8 @@ final class XlsxFastEditor
 		$target = $xpath->evaluate(<<<xpath
 			normalize-space(/pr:Relationships/pr:Relationship[@Id='{$rId}'
 			and @Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink'][1]/@Target)
-		xpath);
+		xpath
+		);
 		return is_string($target) ? $target : null;
 	}
 
@@ -905,10 +914,10 @@ final class XlsxFastEditor
 	/**
 	 * Change an hyperlink associated to the given cell of the given worksheet.
 	 * @return bool True if any hyperlink was cleared, false otherwise.
-	 * @internal
 	 * @throws \InvalidArgumentException if `$cellName` has an invalid format
 	 * @throws XlsxFastEditorFileFormatException
 	 * @throws XlsxFastEditorXmlException
+	 * @internal
 	 */
 	public function _setHyperlink(int $sheetNumber, string $rId, string $value): bool
 	{
@@ -921,7 +930,8 @@ final class XlsxFastEditor
 		$hyperlinks = $xpath->query(<<<xpath
 			/pr:Relationships/pr:Relationship[@Id='{$rId}'
 			and @Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink'][1]
-		xpath);
+		xpath
+		);
 		if ($hyperlinks !== false && $hyperlinks->length > 0) {
 			$hyperlink = $hyperlinks[0];
 			if (!($hyperlink instanceof \DOMElement)) {
@@ -1005,11 +1015,11 @@ final class XlsxFastEditor
 
 	/**
 	 * Adds a new shared string and returns its ID.
-	 * @internal
 	 * @param string $value Value of the new shared string.
 	 * @return int the ID of the new shared string.
 	 * @throws XlsxFastEditorFileFormatException
 	 * @throws XlsxFastEditorXmlException
+	 * @internal
 	 */
 	public function _makeNewSharedString(string $value): int
 	{
@@ -1055,7 +1065,7 @@ final class XlsxFastEditor
 		$dom->firstElementChild->setAttribute('uniqueCount', (string)$uniqueCount);
 
 		$this->touchPath(self::SHARED_STRINGS_PATH);
-		return $uniqueCount - 1;	// Base 0
+		return $uniqueCount - 1;  // Base 0
 	}
 
 	/**
@@ -1106,5 +1116,144 @@ final class XlsxFastEditor
 			$this->touchPath(self::SHARED_STRINGS_PATH);
 		}
 		return $nb;
+	}
+
+
+
+	/**
+	 * Checks if the string already exists in the cache and uses the existing ID instead of creating a new one
+	 * @param string $value The string value to save
+	 * @return int The ID of the string in sharedStrings
+	 * @throws XlsxFastEditorFileFormatException
+	 * @throws XlsxFastEditorXmlException
+	 * @internal
+	 */
+	public function _getOrCreateSharedString(string $value): int
+	{
+		if (isset($this->sharedStringsCache[$value])) {
+			return $this->sharedStringsCache[$value];
+		}
+
+		// Instead of trying to use XPath with a text value,
+		// iterate through all nodes and compare values
+
+		$xpath = $this->getXPathFromPath(self::SHARED_STRINGS_PATH);
+		$nodes = $xpath->query("//o:sst/o:si/o:t");
+
+		if ($nodes !== false) {
+			for ($i = 0; $i < $nodes->length; $i++) {
+				$node = $nodes->item($i);
+				if ($node instanceof \DOMElement && $node->nodeValue === $value) {
+					// Find the index (position) of this node in the shared strings collection
+					$parentSi = $node->parentNode;
+					if ($parentSi instanceof \DOMElement) {
+						$parentSiNodes = $xpath->query("//o:sst/o:si");
+						if ($parentSiNodes !== false) {
+							for ($j = 0; $j < $parentSiNodes->length; $j++) {
+								if (($nodeItem = $parentSiNodes->item($j)) !== null && $nodeItem->isSameNode($parentSi)) {
+									$this->sharedStringsCache[$value] = $j;
+									return $j;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Create a new entry
+		$id = $this->_makeNewSharedString($value);
+		$this->sharedStringsCache[$value] = $id;
+		return $id;
+	}
+
+	/**
+	 * Writes multiple values to multiple cells in a single operation.
+	 * Much more efficient than writing individual cells.
+	 *
+	 * @param int $sheetNumber Sheet number (base 1)
+	 * @param array<string,string|int|float> $values Array of values to write, e.g. ['A1' => 'text', 'B2' => 123]
+	 * @throws XlsxFastEditorFileFormatException
+	 * @throws XlsxFastEditorXmlException
+	 * @throws XlsxFastEditorInputException
+	 * @throws InvalidArgumentException
+	 */
+	public function writeBatch(int $sheetNumber, array $values): void
+	{
+		// Group by row to optimize DOM operations
+		$rowGroups = [];
+		foreach ($values as $cellName => $value) {
+			if (!ctype_alnum($cellName)) {
+				throw new \InvalidArgumentException("Invalid cell reference {$cellName}!");
+			}
+
+			$cellName = strtoupper($cellName);
+			$rowNumber = (int)preg_replace('/[^\d]+/', '', $cellName);
+			if (!isset($rowGroups[$rowNumber])) {
+				$rowGroups[$rowNumber] = [];
+			}
+			$rowGroups[$rowNumber][$cellName] = $value;
+		}
+
+		// Process each row
+		foreach ($rowGroups as $rowNumber => $cellValues) {
+			$row = $this->getRow($sheetNumber, $rowNumber, XlsxFastEditor::ACCESS_MODE_AUTOCREATE);
+
+			// Prepare all cells in this row
+			foreach ($cellValues as $cellName => $value) {
+				$cell = $row->getCellAutocreate($cellName);
+
+				// Write value of appropriate type
+				if (is_string($value)) {
+					// Check if string is in date format YYYY-MM-DD
+					if ($this->isStringInDateFormat($value)) {
+						try {
+							$dateTime = new \DateTime($value);
+							$excelDate = $this->dateTimeToExcel($dateTime);
+							$cell->writeFloat($excelDate);
+						} catch (\Exception $e) {
+							// If conversion fails, treat as regular string
+							$cell->writeString($value);
+						}
+					} else {
+						$cell->writeString($value);
+					}
+				} elseif (is_int($value)) {
+					$cell->writeInt($value);
+				} elseif (is_float($value)) {
+					$cell->writeFloat($value);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Checks if a string is in the format YYYY-MM-DD
+	 * @param string $value The string to check
+	 * @return bool True if the string is in the date format, false otherwise
+	 */
+	private function isStringInDateFormat(string $value): bool
+	{
+		return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1;
+	}
+
+	/**
+	 * Converts DateTime object to Excel date format
+	 * @param \DateTimeInterface $dateTime
+	 * @return float
+	 */
+	private function dateTimeToExcel(\DateTimeInterface $dateTime): float
+	{
+		$timestamp = $dateTime->getTimestamp();
+		$excelBaseDate = strtotime('1900-01-01');
+		$days = ($timestamp - $excelBaseDate) / (60 * 60 * 24);
+
+		// Excel uses 1900 as a leap year, but it's not true
+		// Add one day for dates after February 28, 1900
+		if ($timestamp >= strtotime('1900-03-01')) {
+			$days += 1;
+		}
+
+		return $days;
 	}
 }
